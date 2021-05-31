@@ -1,22 +1,24 @@
 CREATE OR REPLACE PACKAGE pkg_adsb_loader
 AS
     g_orphan_status_update_max_age number(4,0) := 600;
-    
+
     FUNCTION epoch_to_ts (
                             epoch_secs IN number
                         )
-    RETURN TIMESTAMP;       
-    
-    PROCEDURE load_data ( 
-                            in_json IN clob
+    RETURN TIMESTAMP;
+
+    PROCEDURE load_data (
+                            in_json IN clob,
+                            out_res OUT varchar2
                         );
-                        
+
     PROCEDURE set_params (
                             in_orphan_status_update_max_age IN number
                         );
-                        
+
     PROCEDURE stage_cleanup(
-                                in_max_age number
+                                in_max_age IN number,
+                                out_res OUT varchar2
                             );
 END pkg_adsb_loader;
 
@@ -42,12 +44,13 @@ AS
             in_json,
             'RECEIVED'
         );
-        
+
         COMMIT;
     END stage_json;
-    
+
     PROCEDURE load_aircraft (
-                                in_ts timestamp
+                                in_ts IN timestamp,
+                                io_res IN OUT varchar2
                             )
     AS
     -- Creates new aircraft records and updates last_seen time of existing records
@@ -69,7 +72,8 @@ AS
                 SELECT 1 FROM aircraft a
                 WHERE a.hex = j.hex
             );
-        -- Update last_seen for those thata are already existing    
+        io_res := 'New aircraft: ' || SQL%rowcount;
+        -- Update last_seen for those thata are already existing
         UPDATE aircraft a
         SET last_seen = in_ts
         WHERE EXISTS (
@@ -77,11 +81,13 @@ AS
             WHERE j.time = in_ts
                 AND j.hex = a.hex
         );
+        io_res := io_res || ', Updated aircraft: ' || SQL%rowcount;
         -- Commit in calling block
     END load_aircraft;
-    
+
     PROCEDURE load_flight (
-                            in_ts timestamp
+                            in_ts timestamp,
+                            io_res IN OUT varchar2
                         )
     AS
     -- Creates new flight records in the flights tble and updates last_seen times of existing records
@@ -107,6 +113,7 @@ AS
                 WHERE trim(j.flight) = f.flight
                     AND j.hex = f.hex
             );
+        io_res := io_res || ', New flights: ' || SQL%rowcount;
         -- Update last_seen for those flights which are already existing
         UPDATE flights f
         SET last_seen = in_ts
@@ -117,11 +124,13 @@ AS
                 AND trim(j.flight) = f.flight
                 AND j.hex = f.hex
         );
+        io_res := io_res || ', Updated flights: ' || SQL%rowcount;
         -- Commit in calling block
     END load_flight;
-    
+
     PROCEDURE load_status (
-                            in_ts timestamp
+                            in_ts timestamp,
+                            io_res IN OUT varchar2
                         )
     AS
     -- Creates new status entries in the status table and updats older records without a flight ID if a flight ID has since been received
@@ -194,11 +203,11 @@ AS
             nav_altitude_mcp,
             nav_altitude_fms,
             nav_heading,
-            trim(nullif(nvl(nav_mode_1, '') || ' ' || 
-                    nvl(nav_mode_2, '') || ' ' || 
-                    nvl(nav_mode_3, '') || ' ' || 
-                    nvl(nav_mode_4, '') || ' ' || 
-                    nvl(nav_mode_5, '') || ' ' || 
+            trim(nullif(nvl(nav_mode_1, '') || ' ' ||
+                    nvl(nav_mode_2, '') || ' ' ||
+                    nvl(nav_mode_3, '') || ' ' ||
+                    nvl(nav_mode_4, '') || ' ' ||
+                    nvl(nav_mode_5, '') || ' ' ||
                     nvl(nav_mode_6, ''), '')) nav_modes,
             lat,
             lon,
@@ -230,7 +239,8 @@ AS
                     AND s.alt_baro = j.alt_baro
                     AND s.track = j.track
             ); -- Keeping comparison fields limited to a few major ones
-        -- Retroactively update older status records (which don't have the flight ID yet) 
+        io_res := io_res || ', New status: ' || SQL%rowcount;
+        -- Retroactively update older status records (which don't have the flight ID yet)
         SELECT * BULK COLLECT INTO t_flights FROM flights where last_seen = in_ts;
         FORALL indx in t_flights.first..t_flights.last
             UPDATE status
@@ -238,11 +248,13 @@ AS
             WHERE flight IS NULL
                 AND hex = t_flights(indx).hex
                 AND time >= in_ts - (g_orphan_status_update_max_age/60/60/24);
-        -- Commit in calling block            
+        io_res := io_res || ', Retroactively updated status: ' || SQL%rowcount;
+        -- Commit in calling block
     END load_status;
-    
-    PROCEDURE load_data ( 
-                            in_json IN clob
+
+    PROCEDURE load_data (
+                            in_json IN clob,
+                            out_res OUT varchar2
                         )
     AS
     -- The entry point to the load process - this calls all the other procedures.
@@ -256,29 +268,31 @@ AS
         UPDATE json_stage SET status = 'PROCESSING', start_time = CURRENT_TIMESTAMP WHERE time = l_ts;
         COMMIT;
         -- Do the loads
-        load_aircraft(l_ts);
-        load_flight(l_ts);
-        load_status(l_ts);
+        load_aircraft(l_ts, out_res);
+        load_flight(l_ts, out_res);
+        load_status(l_ts, out_res);
         -- Set status to DONE
         UPDATE json_stage SET status = 'DONE', end_time = CURRENT_TIMESTAMP WHERE time = l_ts;
         -- Final commit
         COMMIT;
     EXCEPTION
         WHEN OTHERS THEN
+            ROLLBACK;
             UPDATE json_stage SET status = 'FAILED', end_time = CURRENT_TIMESTAMP WHERE time = l_ts;
             COMMIT;
+            out_res := 'Something went wrong.' || CHR(10);
     END load_data;
-    
+
     FUNCTION epoch_to_ts (
                             epoch_secs IN number
                         )
-    RETURN TIMESTAMP                   
+    RETURN TIMESTAMP
     AS
     -- Simple function to convert UNIX epoch timestamp to Oracle timestamp
     BEGIN
         RETURN FROM_TZ(TIMESTAMP '1970-01-01 00:00:00', '0:00') AT LOCAL + (epoch_secs/60/60/24);
     END epoch_to_ts;
-    
+
     PROCEDURE set_params (
                             in_orphan_status_update_max_age IN number
                         )
@@ -286,16 +300,18 @@ AS
     BEGIN
         g_orphan_status_update_max_age := in_orphan_status_update_max_age;
     END set_params;
-    
+
     PROCEDURE stage_cleanup(
-                                in_max_age number
+                                in_max_age IN number,
+                                out_res OUT varchar2
                             )
     AS
     -- Deletes record from json_stage that are older than the supplied number of seconds.
     BEGIN
         DELETE FROM json_stage
         WHERE time < CURRENT_TIMESTAMP - (in_max_age/60/60/24);
+        out_res := 'Cleanup: ' || SQL%rowcount || ' records deleted';
         COMMIT;
     END stage_cleanup;
-    
+
 END pkg_adsb_loader;

@@ -30,6 +30,7 @@ pip3 install aiohttp cx_Oracle python-dateutil
 The *db* directory/folder has 2 scripts.
   * tables.sql - Contains statements to create the required tables and view.
   * pkg_adsb_loader.sql - Contains the definition for the PL/SQL package that handles the data loading logic and operations.
+
 Connect to your preferred Oracle database client and execute these 2 scripts.
 
 Copy the *config_template.py* file to *config.py*.
