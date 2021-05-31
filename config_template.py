@@ -10,7 +10,7 @@ config['db'] = {
                 'service_name': 'pdb1',
                 'username':     'adsb',
                 'password':     '******'
-                } 
+                }
 
 # Dump1090 URL for the aircraft.json file
 config['dump1090_url'] = 'http://192.168.1.115/dump1090/data/aircraft.json'
@@ -41,3 +41,46 @@ config['http_timeout'] = 5 # seconds
 config['cleanup_run_interval'] = 3600 # seconds
 # and how old the messages can be before they are removed.
 config['stage_rows_max_age'] = 172800 # seconds
+
+# The maximum number of consecutive errors that will be allowed for the
+# HTTP fetch process that get the data from dump1090.
+# The process will fail if consecutive errors exceed this threshold.
+# A successful operation will reset the counter.
+config['max_consecutive_http_errors'] = 10
+
+# Configure the following parameters for logging.
+# The process can write to log files in the directory speified below.
+# A new log file will be created at midnight every day and the old file will be
+# renamed with the date. The maximum number of old files that will be kept can
+# be specified below.
+# The log levels are the standard Python logging module levels. To log only errors,
+# set it to logging.ERROR (case sensitive).
+config['logging'] =     {
+                        # To enable, set to True (with capitlized T)
+                        'enabled':              False,
+                        # Directory/folder where log files will be created
+                        'log_dir':              '/home/adsb/logs',
+                        # Log file name
+                        'log_file_name':        'adsb_data_collector_mongodb.log',
+                        # Log level
+                        'log_level':            logging.INFO,
+                        # Log format
+                        'log_format':           '%(asctime)s - %(levelname)s - %(message)s',
+                        # Max number of old logs that will be kept
+                        'log_file_hist_count':  7
+                        }
+
+# This set of parameters are to be used if you want to configure Pushover notifcations.
+# If not , just leave 'enabled' as False.
+config['pushover'] =    {
+                        # To enable, set to True (with capitlized T)
+                        'enabled':      False,
+                        # Your Pushover user
+                        'user':         'your Pushover user string',
+                        # Your Pushover app token
+                        'token':        'your Pushover app token',
+                        # Log level
+                        'log_level':    logging.CRITICAL,
+                        # Log format
+                        'log_format':   'ADS-B Oracle feeder had an error\n%(message)s'
+                        }

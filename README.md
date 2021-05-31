@@ -51,5 +51,11 @@ Let it run for a few seconds (or longer if you wish). If all goes well, you shou
 
 To run it for the long term, I suggest running in in the background with nohup as shown below, but you can choose your own method. The script will basically run indefinitely once started.
 ```
-nohup adsb-data-collector.py &
+nohup python3 adsb-data-collector.py &
 ```
+
+### About Logging
+The script supports logging to a file using the standard Python logging package. It is disabled by default and can be enabled from the *config.py* file. Please see the config file on how to enabled it and set the other parameters. The files are rotated such that a new file is created at midnight and the old file is renamed with the date stamp. You can configure how may days of old files you want to keep.
+
+### About Pushover Notifications
+The script also supports sending log messages as Pushover notifications. So you can set it up to notify you of errors or failures. The feature is disabled by default. To enabled it, please download the *LogPushoverHandler* from [here](https://github.com/dbsoft42/LogPushoverHandler) and place the *LogPushoverHandler.py* file in the same directory as *adsb-data-collector.py*. Then go to *config.py* and enable the feature. I recommend you keep the log level to *logging.ERROR* or *logging.CRITICAL* for the Pushover notifications.
