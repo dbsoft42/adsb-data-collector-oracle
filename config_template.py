@@ -47,6 +47,10 @@ config['stage_rows_max_age'] = 172800 # seconds
 # The process will fail if consecutive errors exceed this threshold.
 # A successful operation will reset the counter.
 config['max_consecutive_http_errors'] = 10
+# The maximum number of consecutive errors that will be allowed for
+# any of the Oracle DB processes. The process will fail if consecutive errors
+# exceed this threshold. A successful operation will reset the counter.
+config['max_consecutive_db_errors'] = 3
 
 # Configure the following parameters for logging.
 # The process can write to log files in the directory speified below.

@@ -31,30 +31,45 @@ def log_setup():
         logger.addHandler(pushover_handler)
     return logger
 
-async def process_dataset(cursor, logger, dataset):
+async def process_dataset(dataset):
     '''This calls the PL/SQL procedure and is called from the main/driver function as an async task'''
     res = cursor.var(str)
-    cursor.callproc('pkg_adsb_loader.load_data', [str(dataset), res])
-    logger.info(f'DB operation results: {res.getvalue()}')
+    try:
+        cursor.callproc('pkg_adsb_loader.load_data', [str(dataset), res])
+        logger.info(f'DB operation results: {res.getvalue()}')
+        max_consecutive_db_errors = config['max_consecutive_db_errors']
+    except Exception as exc:
+        logger.exception('Something went wrong with the Oracle procedure call')
+        max_consecutive_db_errors -= 1
+        raise exc
 
-async def cleanup(cursor, logger):
+async def cleanup():
     '''
     This procedure cleans up rows from the JSON_STAGE table that are older than the
     max age mentioned in the config dict
     '''
     res = cursor.var(str)
     while True:
-        logger.info('Cleanup: starting')
-        cursor.callproc('pkg_adsb_loader.stage_cleanup', [config['stage_rows_max_age'], res])
-        logger.info(f'Cleanup: {res.getvalue()}')
-        logger.info('Cleanup: complete')
-        await asyncio.sleep(config['cleanup_run_interval'])
+        try:
+            logger.info('Cleanup: starting')
+            cursor.callproc('pkg_adsb_loader.stage_cleanup', [config['stage_rows_max_age'], res])
+            logger.info(f'Cleanup: {res.getvalue()}')
+            logger.info('Cleanup: complete')
+            max_consecutive_db_errors = config['max_consecutive_db_errors']
+            await asyncio.sleep(config['cleanup_run_interval'])
+        except Exception as exc:
+            logger.exception('Cleanup: Something went wrong with the Oracle procedure call')
+            max_consecutive_db_errors -= 1
+            raise exc
+
 
 
 async def main():
     '''The driver function - will get the JSON from the URL and call process_dataset'''
+    global max_consecutive_db_errors, cursor, logger
     try:
         max_consecutive_http_errors = config['max_consecutive_http_errors']
+        max_consecutive_db_errors = config['max_consecutive_db_errors']
 
         # Set up logging
         logger = log_setup()
@@ -72,7 +87,7 @@ async def main():
         cursor.callproc('pkg_adsb_loader.set_params', [config['orphan_status_update_max_age']])
 
         # Create a separate task for the cleanup function
-        asyncio.create_task(cleanup(cursor, logger))
+        asyncio.create_task(cleanup())
 
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=config['http_timeout'])) as http_session:
             while True:
@@ -90,8 +105,10 @@ async def main():
                     continue
                 logger.debug(f'Dataset received from dump1090:\n{dataset}')
                 logger.info(f"Got {len(dataset['aircraft'])} aircraft detail messages from dump1090")
-                asyncio.create_task(process_dataset(cursor, logger, dataset))
+                loader_task = asyncio.create_task(process_dataset(dataset))
                 await asyncio.sleep(config['source_poll_interval'])
+                if max_consecutive_db_errors == 0:
+                    raise cx_Oracle.Error
     except Exception as exc:
         logger.exception('Something went wrong')
         logger.critical('This is a fatal error. Exiting.')
