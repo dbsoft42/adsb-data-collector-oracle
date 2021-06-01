@@ -8,6 +8,8 @@ This is mainly a single script that runs continuously and collects [ADS-B](https
 * Works with *[dump1090-fa](https://github.com/adsbxchange/dump1090-fa)* and should work with *[dump1090-mutability](https://github.com/adsbxchange/dump1090-mutability)* too, but it's not tested. Please drop me a line if it works for you.
 * Written in *Python* and Oracle *PL/SQL*.
 * Most of the database operations to load a set of data received from dump1090 is triggered by a single PL/SQL procedure call. Although the cx_Oracle libary does not support asynchronous operations, Python asyncio coroutines are used to reduce delays as far as possible from the database operations.
+* Logging facility available
+* Ready for Pushover notifications in case of errors/failure.
 
 ### Requirements
 * A configured and running **dump1090** instance (see links above). This can be yours or a friend's but you should be able to access it from wherever you intend to run this script, if the script is not running on the same machine as dump1090.
