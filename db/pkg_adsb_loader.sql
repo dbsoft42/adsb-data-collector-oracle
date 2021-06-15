@@ -76,10 +76,9 @@ AS
         -- Update last_seen for those thata are already existing
         UPDATE aircraft a
         SET last_seen = in_ts
-        WHERE EXISTS (
-            SELECT 1 FROM view_json_stage j
+        WHERE hex IN (
+            SELECT hex FROM view_json_stage j
             WHERE j.time = in_ts
-                AND j.hex = a.hex
         );
         io_res := io_res || ', Updated aircraft: ' || SQL%rowcount;
         -- Commit in calling block
@@ -117,12 +116,10 @@ AS
         -- Update last_seen for those flights which are already existing
         UPDATE flights f
         SET last_seen = in_ts
-        WHERE EXISTS (
-            SELECT 1 FROM view_json_stage j
+        WHERE (hex, flight) IN (
+            SELECT hex, trim(flight) FROM view_json_stage j
             WHERE j.time = in_ts
                 AND j.flight IS NOT NULL
-                AND trim(j.flight) = f.flight
-                AND j.hex = f.hex
         );
         io_res := io_res || ', Updated flights: ' || SQL%rowcount;
         -- Commit in calling block
@@ -183,7 +180,7 @@ AS
         SELECT
              hex,
             time,
-            flight,
+            trim(flight),
             alt_baro,
             alt_geom,
             gs,
@@ -236,8 +233,12 @@ AS
                     AND j.flight IS NOT NULL
                     AND s.lat = j.lat
                     AND s.lon = j.lon
-                    AND s.alt_baro = j.alt_baro
-                    AND s.track = j.track
+                    AND (
+                          (s.alt_baro = j.alt_baro AND s.alt_baro IS NOT NULL AND j.alt_baro IS NOT NULL)
+                          OR
+                          (s.alt_geom = j.alt_geom AND s.alt_geom IS NOT NULL AND j.alt_geom IS NOT NULL)
+                        )
+                    AND s.time >= in_ts - (g_orphan_status_update_max_age/60/60/24)
             ); -- Keeping comparison fields limited to a few major ones
         io_res := io_res || ', New status: ' || SQL%rowcount;
         -- Retroactively update older status records (which don't have the flight ID yet)
