@@ -1,39 +1,44 @@
 CREATE TABLE "JSON_STAGE"
- (	"TIME" TIMESTAMP (6) NOT NULL ENABLE,
-"JSON_TEXT" CLOB NOT NULL ENABLE,
-"STATUS" VARCHAR2(20 BYTE) NOT NULL ENABLE,
-"START_TIME" TIMESTAMP (6),
-"END_TIME" TIMESTAMP (6),
- CONSTRAINT "CHECK_JSON" CHECK ("JSON_TEXT" IS JSON (LAX)) ENABLE,
- CONSTRAINT "JSON_STAGE_PK" PRIMARY KEY ("TIME")
-USING INDEX ENABLE
- )
-LOB ("JSON_TEXT") STORE AS SECUREFILE;
+  (	"TIME" TIMESTAMP (6) NOT NULL ENABLE,
+    "JSON_TEXT" CLOB NOT NULL ENABLE,
+    "STATUS" VARCHAR2(20 BYTE) NOT NULL ENABLE,
+    "START_TIME" TIMESTAMP (6),
+    "END_TIME" TIMESTAMP (6),
+    CONSTRAINT "CHECK_JSON" CHECK ("JSON_TEXT" IS JSON (LAX)) ENABLE,
+    CONSTRAINT "JSON_STAGE_PK" PRIMARY KEY ("TIME")
+    USING INDEX ENABLE
+  )
+LOB ("JSON_TEXT") STORE AS SECUREFILE
+PARALLEL;
 
 
 CREATE TABLE "AIRCRAFT"
- (	"HEX" CHAR(6 BYTE) NOT NULL ENABLE,
-  "FIRST_SEEN" TIMESTAMP (6) NOT NULL ENABLE,
- 	"LAST_SEEN" TIMESTAMP (6) NOT NULL ENABLE,
- 	"REGISTRATION" VARCHAR2(8 BYTE),
- 	"TYPE" VARCHAR2(10 BYTE),
- 	"MODEL" VARCHAR2(75 BYTE),
- 	"OPERATOR" VARCHAR2(100 BYTE), 
- 	"COMMENTS" VARCHAR2(255 BYTE),
- CONSTRAINT "AIRCRAFT_PK" PRIMARY KEY ("HEX")
-USING INDEX ENABLE
- );
+  (	"HEX" CHAR(6 BYTE) NOT NULL ENABLE,
+    "FIRST_SEEN" TIMESTAMP (6) NOT NULL ENABLE,
+  	"LAST_SEEN" TIMESTAMP (6) NOT NULL ENABLE,
+  	"REGISTRATION" VARCHAR2(8 BYTE),
+  	"TYPE" VARCHAR2(10 BYTE),
+  	"MODEL" VARCHAR2(75 BYTE),
+  	"OPERATOR" VARCHAR2(100 BYTE),
+  	"COMMENTS" VARCHAR2(255 BYTE),
+    CONSTRAINT "AIRCRAFT_PK" PRIMARY KEY ("HEX")
+    USING INDEX ENABLE
+  )
+ROW STORE COMPRESS ADVANCED
+PARALLEL;
 
- CREATE TABLE "FLIGHTS"
+CREATE TABLE "FLIGHTS"
   (	"FLIGHT" VARCHAR2(15 BYTE) NOT NULL ENABLE,
-	"HEX" CHAR(6 BYTE) NOT NULL ENABLE,
-	"FIRST_SEEN" TIMESTAMP (6) NOT NULL ENABLE,
-	"LAST_SEEN" TIMESTAMP (6) NOT NULL ENABLE,
-	 CONSTRAINT "FLIGHTS_PK" PRIMARY KEY ("FLIGHT", "HEX")
- USING INDEX ENABLE,
-	 CONSTRAINT "FLIGHTS_FK1" FOREIGN KEY ("HEX")
-	  REFERENCES "AIRCRAFT" ("HEX") ENABLE
-  );
+    "HEX" CHAR(6 BYTE) NOT NULL ENABLE,
+    "FIRST_SEEN" TIMESTAMP (6) NOT NULL ENABLE,
+    "LAST_SEEN" TIMESTAMP (6) NOT NULL ENABLE,
+    CONSTRAINT "FLIGHTS_PK" PRIMARY KEY ("FLIGHT", "HEX")
+    USING INDEX ENABLE,
+    CONSTRAINT "FLIGHTS_FK1" FOREIGN KEY ("HEX")
+    REFERENCES "AIRCRAFT" ("HEX") ENABLE
+  )
+ROW STORE COMPRESS ADVANCED
+PARALLEL;
 
 
 CREATE TABLE "STATUS"
@@ -77,71 +82,73 @@ CREATE TABLE "STATUS"
   "MODE_A" NUMBER(1,0),
   "MODE_C" NUMBER(1,0),
   "RSSI" NUMBER(4,1),
-CONSTRAINT "STATUS_PK" PRIMARY KEY ("HEX", "TIME")
-USING INDEX ENABLE,
- CONSTRAINT "STATUS_FK1" FOREIGN KEY ("HEX")
+  CONSTRAINT "STATUS_PK" PRIMARY KEY ("HEX", "TIME")
+  USING INDEX ENABLE,
+  CONSTRAINT "STATUS_FK1" FOREIGN KEY ("HEX")
   REFERENCES "AIRCRAFT" ("HEX") ENABLE
  )
+ROW STORE COMPRESS ADVANCED
 PARTITION BY RANGE(TIME)
 INTERVAL (NUMTODSINTERVAL(1,'DAY'))
     (
     PARTITION STATUS_P_20210520 VALUES LESS THAN (TO_DATE('2021-05-21', 'YYYY-MM-DD')),
     PARTITION STATUS_P_20210521 VALUES LESS THAN (TO_DATE('2021-05-22', 'YYYY-MM-DD'))
-    );
+    )
+PARALLEL;
 
- CREATE OR REPLACE VIEW view_json_stage AS
-   SELECT m.time, m.status, j."NOW",j."HEX",j."FLIGHT",j."ALT_BARO",j."ALT_GEOM",j."GS",j."IAS",j."TAS",j."MACH",j."TRACK",j."TRACK_RATE",j."ROLL",j."MAG_HEADING",j."TRUE_HEADING",j."BARO_RATE",j."GEOM_RATE",j."SQUAWK",j."CATEGORY",j."NAV_QNH",j."NAV_ALTITUDE_MCP",j."NAV_ALTITUDE_FMS",j."NAV_HEADING",j."MODEA",j."MODEC",j."LAT",j."LON",j."NIC",j."RC",j."VERSION",j."NAC_P",j."NAC_V",j."NIC_BARO",j."SIL",j."SIL_TYPE",j."GVA",j."SDA",j."RSSI",j."MLAT",j."NAV_MODE_1",j."NAV_MODE_2",j."NAV_MODE_3",j."NAV_MODE_4",j."NAV_MODE_5",j."NAV_MODE_6"
-     FROM json_stage m, json_table(
-     m.json_text, '$' COLUMNS(
-         now,
-         NESTED aircraft[*]
-             COLUMNS (
-                 hex,
-                 flight,
-                 alt_baro,
-                 alt_geom,
-                 gs,
-                 ias,
-                 tas,
-                 mach,
-                 track,
- 				track_rate,
-                 roll,
-                 mag_heading,
- 				true_heading,
-                 baro_rate,
-                 geom_rate,
-                 squawk,
-                 category,
-                 nav_qnh,
-                 nav_altitude_mcp,
-                 nav_altitude_fms,
-                 nav_heading,
-                 Nested nav_modes
-                     COLUMNS (
-                         nav_mode_1 PATH '$[0]',
-                         nav_mode_2 PATH '$[1]',
-                         nav_mode_3 PATH '$[2]',
-                         nav_mode_4 Path '$[3]',
-                         nav_mode_5 PATH '$[4]',
-                         nav_mode_6 PATH '$[5]'
-                     ),
-                 modea,
-                 modec,
-                 lat,
-                 lon,
-                 nic,
-                 rc,
-                 version,
-                 nac_p,
-                 nac_v,
-                 nic_baro,
-                 sil,
-                 sil_type,
-                 gva,
-                 sda,
-                 rssi,
-                 mlat PATH '$.mlat.size()'
-             )
-         )
-     ) j;
+CREATE OR REPLACE VIEW view_json_stage AS
+ SELECT m.time, m.status, j."NOW",j."HEX",j."FLIGHT",j."ALT_BARO",j."ALT_GEOM",j."GS",j."IAS",j."TAS",j."MACH",j."TRACK",j."TRACK_RATE",j."ROLL",j."MAG_HEADING",j."TRUE_HEADING",j."BARO_RATE",j."GEOM_RATE",j."SQUAWK",j."CATEGORY",j."NAV_QNH",j."NAV_ALTITUDE_MCP",j."NAV_ALTITUDE_FMS",j."NAV_HEADING",j."MODEA",j."MODEC",j."LAT",j."LON",j."NIC",j."RC",j."VERSION",j."NAC_P",j."NAC_V",j."NIC_BARO",j."SIL",j."SIL_TYPE",j."GVA",j."SDA",j."RSSI",j."MLAT",j."NAV_MODE_1",j."NAV_MODE_2",j."NAV_MODE_3",j."NAV_MODE_4",j."NAV_MODE_5",j."NAV_MODE_6"
+   FROM json_stage m, json_table(
+   m.json_text, '$' COLUMNS(
+       now,
+       NESTED aircraft[*]
+           COLUMNS (
+               hex,
+               flight,
+               alt_baro,
+               alt_geom,
+               gs,
+               ias,
+               tas,
+               mach,
+               track,
+				track_rate,
+               roll,
+               mag_heading,
+				true_heading,
+               baro_rate,
+               geom_rate,
+               squawk,
+               category,
+               nav_qnh,
+               nav_altitude_mcp,
+               nav_altitude_fms,
+               nav_heading,
+               Nested nav_modes
+                   COLUMNS (
+                       nav_mode_1 PATH '$[0]',
+                       nav_mode_2 PATH '$[1]',
+                       nav_mode_3 PATH '$[2]',
+                       nav_mode_4 Path '$[3]',
+                       nav_mode_5 PATH '$[4]',
+                       nav_mode_6 PATH '$[5]'
+                   ),
+               modea,
+               modec,
+               lat,
+               lon,
+               nic,
+               rc,
+               version,
+               nac_p,
+               nac_v,
+               nic_baro,
+               sil,
+               sil_type,
+               gva,
+               sda,
+               rssi,
+               mlat PATH '$.mlat.size()'
+           )
+       )
+   ) j;
