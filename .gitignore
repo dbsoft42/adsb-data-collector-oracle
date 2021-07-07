@@ -1,5 +1,6 @@
 __pycache__
 config.py
 test/
+my_scripts/
 nohup.out
 LogPushoverHandler.py

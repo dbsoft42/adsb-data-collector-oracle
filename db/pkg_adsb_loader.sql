@@ -281,7 +281,8 @@ AS
             ROLLBACK;
             UPDATE json_stage SET status = 'FAILED', end_time = CURRENT_TIMESTAMP WHERE time = l_ts;
             COMMIT;
-            out_res := 'Something went wrong.' || CHR(10);
+            out_res := 'Something went wrong.' || CHR(10) 
+                || DBMS_UTILITY.FORMAT_ERROR_STACK || CHR(10) || DBMS_UTILITY.FORMAT_ERROR_BACKTRACE;
     END load_data;
 
     FUNCTION epoch_to_ts (
