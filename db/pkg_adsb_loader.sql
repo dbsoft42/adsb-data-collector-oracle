@@ -283,6 +283,7 @@ AS
             COMMIT;
             out_res := 'Something went wrong.' || CHR(10) 
                 || DBMS_UTILITY.FORMAT_ERROR_STACK || CHR(10) || DBMS_UTILITY.FORMAT_ERROR_BACKTRACE;
+            raise;
     END load_data;
 
     FUNCTION epoch_to_ts (

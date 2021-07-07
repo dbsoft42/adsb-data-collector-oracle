@@ -39,6 +39,7 @@ async def process_dataset(dataset):
         logger.info(f'DB operation results: {res.getvalue()}')
         max_consecutive_db_errors = config['max_consecutive_db_errors']
     except Exception as exc:
+        logger.info(f'DB operation results: {res.getvalue()}')
         logger.exception('Something went wrong with the Oracle procedure call')
         max_consecutive_db_errors -= 1
         raise exc
