@@ -41,6 +41,7 @@ async def process_dataset(dataset):
     except Exception as exc:
         logger.info(f'DB operation results: {res.getvalue()}')
         logger.exception('Something went wrong with the Oracle procedure call')
+        logger.debug(f"Failed dataset (this doesn't necessarily indicate a problem with the data): {dataset}")
         max_consecutive_db_errors -= 1
         raise exc
 
