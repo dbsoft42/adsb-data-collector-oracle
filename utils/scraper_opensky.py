@@ -8,13 +8,14 @@ from config import config
 # Selenium Chrome webdriver path - include the file name
 chrome_driver_path = r'C:\chromedriver_win32\chromedriver.exe'
 # Oracle instant client path - not needed if you can connect without it
-ora_instant_client_path = r'C:\instantclient_19_11'
+#ora_instant_client_path = r'C:\instantclient_19_11'
 # These many records will be fetched, updated and committed per batch
 batch_size = 5
 max_request_spacing = 5 # secs
 
 # Initialize DB connection
-cx_Oracle.init_oracle_client(lib_dir=ora_instant_client_path) # Comment this if you don't use the instant client
+# Uncomment the line below if you need to use the Oracle Instant Client
+#cx_Oracle.init_oracle_client(lib_dir=ora_instant_client_path)
 ora = cx_Oracle.connect(
                         config['db']['username'],
                         config['db']['password'],
