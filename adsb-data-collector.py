@@ -31,21 +31,22 @@ def log_setup():
         logger.addHandler(pushover_handler)
     return logger
 
-async def process_dataset(dataset):
+def process_dataset(dataset, max_consecutive_db_errors):
     '''This calls the PL/SQL procedure and is called from the main/driver function as an async task'''
     res = cursor.var(str)
     try:
         cursor.callproc('pkg_adsb_loader.load_data', [str(dataset), res])
         logger.info(f'DB operation results: {res.getvalue()}')
-        max_consecutive_db_errors = config['max_consecutive_db_errors']
+        return config['max_consecutive_db_errors']
     except Exception as exc:
         logger.info(f'DB operation results: {res.getvalue()}')
         logger.exception('Something went wrong with the Oracle procedure call')
         logger.debug(f"Failed dataset (this doesn't necessarily indicate a problem with the data): {dataset}")
         max_consecutive_db_errors -= 1
-        raise exc
+        print(max_consecutive_db_errors)
+        return max_consecutive_db_errors
 
-async def cleanup():
+async def cleanup(max_consecutive_db_errors):
     '''
     This procedure cleans up rows from the JSON_STAGE table that are older than the
     max age mentioned in the config dict
@@ -63,6 +64,7 @@ async def cleanup():
             logger.exception('Cleanup: Something went wrong with the Oracle procedure call')
             max_consecutive_db_errors -= 1
             raise exc
+            # Current this has no functionality as the func is being called as a task
 
 
 
@@ -89,7 +91,7 @@ async def main():
         cursor.callproc('pkg_adsb_loader.set_params', [config['orphan_status_update_max_age']])
 
         # Create a separate task for the cleanup function
-        asyncio.create_task(cleanup())
+        asyncio.create_task(cleanup(max_consecutive_db_errors))
 
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=config['http_timeout'])) as http_session:
             while True:
@@ -107,7 +109,7 @@ async def main():
                     continue
                 logger.debug(f'Dataset received from dump1090:\n{dataset}')
                 logger.info(f"Got {len(dataset['aircraft'])} aircraft detail messages from dump1090")
-                loader_task = asyncio.create_task(process_dataset(dataset))
+                max_consecutive_db_errors = process_dataset(dataset, max_consecutive_db_errors)
                 await asyncio.sleep(config['source_poll_interval'])
                 if max_consecutive_db_errors == 0:
                     raise cx_Oracle.Error
