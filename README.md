@@ -61,3 +61,19 @@ The script supports logging to a file using the standard Python logging package.
 
 ### About Pushover Notifications
 The script also supports sending log messages as Pushover notifications. So you can set it up to notify you of errors or failures. The feature is disabled by default. To enabled it, please download the *LogPushoverHandler* from [here](https://github.com/dbsoft42/LogPushoverHandler) and place the *LogPushoverHandler.py* file in the same directory as *adsb-data-collector.py*. Then go to *config.py* and enable the feature. I recommend you keep the log level to *logging.ERROR* or *logging.CRITICAL* for the Pushover notifications.
+
+### Performance
+You can check how long each dataset takes to be processed by querying the *JSON_STAGE* table.
+
+```SQL
+SELECT start_time, end_time, end_time - start_time AS time_taken FROM json_stage ORDER BY time DESC;
+```
+
+If the times are increasing over time, it may be helpful to collect statistics on that growing tables. The easiest way to do this is to collect statistics on the entire schema, assuming the schema only has the relevant ADSB tables.
+
+```SQL
+EXEC dbms_stats.gather_schema_stats(ownname=>'ADSB');
+```
+Replace *ADSB* above with your schema/user name if it is different.
+
+In any case, it is recommended to collect statistics periodically to maintain optimum performance as the tables grow with your collected data.
