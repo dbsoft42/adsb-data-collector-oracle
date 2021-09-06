@@ -89,7 +89,7 @@ AS
                             io_res IN OUT varchar2
                         )
     AS
-    -- Creates new flight records in the flights tble and updates last_seen times of existing records
+    -- Creates new flight records in the flights table and updates last_seen times of existing records
     BEGIN
         -- Insert those flights which are not existing
         INSERT INTO flights
@@ -106,7 +106,7 @@ AS
             j.time
         FROM view_json_stage j
         WHERE j.time = in_ts
-            AND j.flight IS NOT NULL
+            AND trim(j.flight) IS NOT NULL
             AND NOT EXISTS (
                 SELECT 1 FROM flights f
                 WHERE trim(j.flight) = f.flight
@@ -117,9 +117,9 @@ AS
         UPDATE flights f
         SET last_seen = in_ts
         WHERE (hex, flight) IN (
-            SELECT hex, trim(flight) FROM view_json_stage j
+            SELECT hex, trim(j.flight) FROM view_json_stage j
             WHERE j.time = in_ts
-                AND j.flight IS NOT NULL
+                AND trim(j.flight) IS NOT NULL
         );
         io_res := io_res || ', Updated flights: ' || SQL%rowcount;
         -- Commit in calling block
