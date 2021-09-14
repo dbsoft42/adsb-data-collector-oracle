@@ -23,7 +23,7 @@ AS
 END pkg_adsb_loader;
 
 
-CREATE OR REPLACE PACKAGE BODY pkg_adsb_loader
+create or replace PACKAGE BODY pkg_adsb_loader
 AS
     PROCEDURE stage_json (
                             in_json IN clob
@@ -68,6 +68,7 @@ AS
             j.time
         FROM view_json_stage j
         WHERE j.time = in_ts
+        AND SUBSTR(hex, 1, 1) <> '~'
         AND NOT EXISTS (
                 SELECT 1 FROM aircraft a
                 WHERE a.hex = j.hex
@@ -106,6 +107,7 @@ AS
             j.time
         FROM view_json_stage j
         WHERE j.time = in_ts
+            AND SUBSTR(j.hex, 1, 1) <> '~'
             AND trim(j.flight) IS NOT NULL
             AND NOT EXISTS (
                 SELECT 1 FROM flights f
@@ -224,6 +226,7 @@ AS
             rssi
         FROM view_json_stage j
         WHERE time = in_ts
+            AND SUBSTR(j.hex, 1, 1) <> '~'
             AND j.lat IS NOT NULL
             AND (j.alt_baro IS NOT NULL OR j.alt_geom IS NOT NULL)
             AND NOT EXISTS (
